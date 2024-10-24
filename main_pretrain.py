@@ -16,6 +16,7 @@ import os
 import time
 from pathlib import Path
 
+from sklearn.base import TransformerMixin
 import torch
 import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
@@ -24,9 +25,10 @@ import torchvision.datasets as datasets
 
 import timm
 
-assert timm.__version__ == "0.3.2"  # version check
+# assert timm.__version__ == "0.3.2"  # version check
 import timm.optim.optim_factory as optim_factory
-
+from torch.utils.data import Dataset
+from PIL import Image
 import util.misc as misc
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 
@@ -34,6 +36,44 @@ import models_mae
 
 from engine_pretrain import train_one_epoch
 import clip
+
+
+class Reflacx(Dataset):
+    def __init__(self, data_root: str, transforms=None) -> None:
+        
+        self.data_root=data_root
+        self.info=json.load(open(os.path.join(self.data_root,"reflacx.json")))
+        self.gaze_dir=os.path.join(self.data_root,"attention")
+        self.transforms=transforms
+        # self.vis_trans=PairedTransform(transforms[0])
+        # self.val_trans=transforms[1]
+
+    def getImgPath(self,index):
+        image_path=self.info[index]['image_path']
+        image_path=os.path.join(self.data_root,image_path)
+        return image_path
+
+    def __getitem__(self, index):
+        image_path=self.info[index]['image_path']
+        study_id=self.info[index]['study_id']
+        reflacx_id=self.info[index]['reflacx_id']
+        image_path=os.path.join(self.data_root,image_path)
+        # gaze_path=os.path.join(self.gaze_dir,study_id,f"{reflacx_id}.png")
+
+        image = Image.open(image_path).convert('RGB')
+        # gaze=Image.open(gaze_path)
+        
+        if self.transforms !=None:
+            # image,gaze=self.transforms(image,gaze)
+            image=self.transforms(image)
+        return image
+        # return {"image":image}
+        # return {"image":image,"gaze":gaze}
+    
+
+    def __len__(self):
+        return len(self.info)
+
 
 def get_args_parser():
     parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
@@ -44,8 +84,8 @@ def get_args_parser():
                         help='Accumulate gradient iterations (for increasing the effective batch size under memory constraints)')
 
     # Model parameters
-    parser.add_argument('--model', default='mae_vit_large_patch16', type=str, metavar='MODEL', help='Name of model to train')
-    parser.add_argument('--clip_path', type=str, help='path of clip model')
+    parser.add_argument('--model', default='mae_vit_base_patch16', type=str, metavar='MODEL', help='Name of model to train')
+    parser.add_argument('--clip_path', default="../preTrain/clip_vit_base_patch16.pth",type=str, help='path of clip model')
 
     parser.add_argument('--input_size', default=224, type=int,
                         help='images input size')
@@ -72,12 +112,12 @@ def get_args_parser():
                         help='epochs to warmup LR')
 
     # Dataset parameters
-    parser.add_argument('--data_path', default='/datasets01/imagenet_full_size/061417/', type=str,
+    parser.add_argument('--data_path', default='../data/reflacx-1.0.0/', type=str,
                         help='dataset path')
 
-    parser.add_argument('--output_dir', default='./output_dir',
+    parser.add_argument('--output_dir', default='./output_dir/deepmim',
                         help='path where to save, empty for no saving')
-    parser.add_argument('--log_dir', default='./output_dir',
+    parser.add_argument('--log_dir', default='./output_dir/deepmim',
                         help='path where to tensorboard log')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
@@ -130,7 +170,8 @@ def main(args):
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
-    dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
+    # dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
+    dataset_train=Reflacx(args.data_path,transforms=transform_train)
     print(dataset_train)
 
     if True:  # args.distributed:

@@ -16,7 +16,7 @@ import torch
 
 import util.misc as misc
 import util.lr_sched as lr_sched
-from IPython import embed
+# from IPython import embed
 
 def train_one_epoch(model: torch.nn.Module, teacher: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
@@ -44,7 +44,7 @@ def train_one_epoch(model: torch.nn.Module, teacher: torch.nn.Module,
     newmean = torch.as_tensor(newmean).to(device)[None, :, None, None]
     newstd = torch.as_tensor(newstd).to(device)[None, :, None, None]
 
-    for data_iter_step, (samples, _) in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
+    for data_iter_step, samples in enumerate(metric_logger.log_every(data_loader, print_freq, header)):
 
         # we use a per iteration (instead of per epoch) lr scheduler
         if data_iter_step % accum_iter == 0:
